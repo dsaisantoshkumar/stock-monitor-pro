@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>TSLA — Tesla Inc. | StockMonitor Pro</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<link rel="stylesheet" href="../css/style.css"/>
+<style>
+.detail-header { background:var(--bg2); border-bottom:1px solid var(--border2); padding:1.5rem 2rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+.detail-back { display:flex; align-items:center; gap:.5rem; color:var(--text3); font-size:.82rem; cursor:pointer; transition:color .2s; }
+.detail-back:hover { color:var(--blue); }
+.detail-symbol { font-family:var(--font-mono); font-size:2rem; font-weight:700; color:var(--text); }
+.detail-name   { font-size:.9rem; color:var(--text3); margin-top:.2rem; }
+.detail-price  { font-family:var(--font-mono); font-size:2.5rem; font-weight:700; }
+.detail-change { font-family:var(--font-mono); font-size:1rem; margin-top:.2rem; }
+.detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; padding:2rem; max-width:1440px; margin:0 auto; }
+.stat-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:.8rem; }
+.stat-box { background:var(--bg3); border:1px solid var(--border2); border-radius:10px; padding:1rem; }
+.stat-lbl { font-size:.62rem; text-transform:uppercase; letter-spacing:.08em; color:var(--text3); font-weight:700; }
+.stat-val { font-family:var(--font-mono); font-size:1rem; font-weight:700; color:var(--text); margin-top:.3rem; }
+</style>
+</head>
+<body>
+<nav id="mainNav">
+  <div class="nav-brand">
+    <div class="nav-dot"></div>
+    <span class="nav-title">StockMonitor<span class="nav-accent">Pro</span></span>
+  </div>
+  <div class="nav-actions">
+    <button class="btn-refresh" onclick="location.reload()">↻ Refresh</button>
+    <button class="btn-alerts" onclick="window.location.href='../index.html'">← Dashboard</button>
+  </div>
+</nav>
+
+<div class="detail-header">
+  <div style="display:flex;align-items:center;gap:1.5rem">
+    <div class="detail-back" onclick="window.location.href='../index.html'">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+      Back to Dashboard
+    </div>
+    <div>
+      <div class="detail-symbol">TSLA</div>
+      <div class="detail-name">Tesla Inc. · NASDAQ</div>
+    </div>
+  </div>
+  <div style="text-align:right">
+    <div class="detail-price" id="detailPrice" style="color:var(--green)">Loading...</div>
+    <div class="detail-change" id="detailChange"></div>
+  </div>
+</div>
+
+<div class="detail-grid">
+  <!-- LEFT: Stats + Signals -->
+  <div style="display:flex;flex-direction:column;gap:1rem">
+    <div class="panel">
+      <div class="panel-header"><h2 class="panel-title">Key Statistics</h2></div>
+      <div style="padding:1rem">
+        <div class="stat-grid" id="statGrid">
+          <div class="stat-box"><div class="stat-lbl">Open</div><div class="stat-val" id="sOpen">—</div></div>
+          <div class="stat-box"><div class="stat-lbl">Day High</div><div class="stat-val" id="sHigh">—</div></div>
+          <div class="stat-box"><div class="stat-lbl">Day Low</div><div class="stat-val" id="sLow">—</div></div>
+          <div class="stat-box"><div class="stat-lbl">Volume</div><div class="stat-val" id="sVol">—</div></div>
+          <div class="stat-box"><div class="stat-lbl">Mkt Cap</div><div class="stat-val" id="sMcap">—</div></div>
+          <div class="stat-box"><div class="stat-lbl">52W High</div><div class="stat-val" id="s52H">—</div></div>
+          <div class="stat-box"><div class="stat-lbl">52W Low</div><div class="stat-val" id="s52L">—</div></div>
+          <div class="stat-box"><div class="stat-lbl">Prev Close</div><div class="stat-val" id="sPrev">—</div></div>
+          <div class="stat-box"><div class="stat-lbl">Updated</div><div class="stat-val mono" id="sUpdated" style="font-size:.7rem">—</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><h2 class="panel-title">Technical Analysis</h2></div>
+      <div style="padding:1rem" id="techPanel">
+        <div style="color:var(--text3);font-size:.8rem">Loading signals...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: AI Analysis -->
+  <div class="panel ai-panel">
+    <div class="panel-header">
+      <h2 class="panel-title">AI Analysis <span class="ai-badge">LM Studio</span></h2>
+      <button class="btn-analyze" onclick="runDetailAnalysis()">Analyze →</button>
+    </div>
+    <div class="ai-content" id="aiContent">
+      <div class="ai-placeholder">
+        <div class="ai-icon">🚗</div>
+        <p>Click <strong>Analyze</strong> to get AI-powered analysis of Tesla Inc. stock.</p>
+        <p class="ai-note mono">Requires LM Studio at localhost:1234</p>
+        <button class="btn-analyze" style="margin-top:1rem" onclick="useFallbackAnalysis('TSLA')">Use Fallback Analysis →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../js/data.js"></script>
+<script src="../js/signals.js"></script>
+<script src="../js/email.js"></script>
+<script src="../js/lmstudio.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  const data = await fetchQuote('TSLA');
+  window.stockData = { TSLA: data };
+  const sigs = generateSignal(data, data.closes);
+  window.allSignals = { TSLA: sigs };
+
+  document.getElementById('detailPrice').textContent = fmtPrice(data.price);
+  document.getElementById('detailPrice').style.color = data.changePct >= 0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('detailChange').innerHTML = `<span style="color:${data.changePct>=0?'var(--green)':'var(--red)'}">${fmtChange(data.change)} (${fmtPct(data.changePct)})</span>`;
+  document.getElementById('sOpen').textContent   = fmtPrice(data.open);
+  document.getElementById('sHigh').textContent   = fmtPrice(data.high);
+  document.getElementById('sLow').textContent    = fmtPrice(data.low);
+  document.getElementById('sVol').textContent    = fmtVol(data.volume);
+  document.getElementById('sMcap').textContent   = fmtCap(data.marketCap);
+  document.getElementById('s52H').textContent    = fmtPrice(data.fiftyTwoWeekHigh);
+  document.getElementById('s52L').textContent    = fmtPrice(data.fiftyTwoWeekLow);
+  document.getElementById('sPrev').textContent   = fmtPrice(data.prev);
+  document.getElementById('sUpdated').textContent = data.timestamp;
+
+  document.getElementById('techPanel').innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:.8rem">
+      <div class="stat-box"><div class="stat-lbl">Signal</div><div class="stat-val"><span class="card-signal ${sigs.signal}">${sigs.signal}</span></div></div>
+      <div class="stat-box"><div class="stat-lbl">RSI (14)</div><div class="stat-val" style="color:${rsiColor(sigs.rsi)}">${sigs.rsi != null ? sigs.rsi.toFixed(1) : '—'}</div></div>
+      <div class="stat-box"><div class="stat-lbl">MA5</div><div class="stat-val">${sigs.ma5 ? '$'+sigs.ma5 : '—'}</div></div>
+      <div class="stat-box"><div class="stat-lbl">MA20</div><div class="stat-val">${sigs.ma20 ? '$'+sigs.ma20 : '—'}</div></div>
+      <div class="stat-box"><div class="stat-lbl">MACD</div><div class="stat-val">${sigs.macd != null ? sigs.macd : '—'}</div></div>
+      <div class="stat-box"><div class="stat-lbl">Score</div><div class="stat-val">${sigs.score >= 0 ? '+' : ''}${sigs.score}</div></div>
+    </div>
+    <div style="margin-top:.8rem;font-size:.78rem;color:var(--text3)">
+      <strong style="color:var(--text2)">Reasons:</strong> ${(sigs.reasons||[]).join(' · ')||'—'}
+    </div>`;
+});
+
+function runDetailAnalysis() {
+  if (!document.getElementById('aiStockSelect')) {
+    const sel = document.createElement('select');
+    sel.id = 'aiStockSelect';
+    sel.style.display = 'none';
+    sel.innerHTML = '<option value="TSLA" selected>TSLA</option>';
+    document.body.appendChild(sel);
+  }
+  document.getElementById('aiStockSelect').value = 'TSLA';
+  runAIAnalysis();
+}
+</script>
+</body>
+</html>
