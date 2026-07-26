@@ -441,8 +441,9 @@ async function fetchOnePrice(s){
       const r=await fetch(url,{signal:AbortSignal.timeout(7000)});
       if(!r.ok)continue;
       const d=await r.json();
-      const p=d?.chart?.result?.[0]?.meta?.regularMarketPrice;
-      if(p&&p>0)return p;
+      const meta=d?.chart?.result?.[0]?.meta;
+      const p=meta?.regularMarketPrice;
+      if(p&&p>0)return{price:p,prevClose:meta?.previousClose||meta?.chartPreviousClose||null};
     }catch(e){/* try next strategy */}
   }
   return null;
@@ -457,14 +458,20 @@ async function fetchLive(){
   const symbols=Object.keys(STOCKS);
   let ok=0;
   for(const s of symbols){
-    const p=await fetchOnePrice(s);
-    if(p){
-      liveP[s]=Math.round(p*100)/100;
+    const q=await fetchOnePrice(s);
+    if(q){
+      liveP[s]=Math.round(q.price*100)/100;
       if(history[s]?.['1D']?.length)history[s]['1D'][history[s]['1D'].length-1]=liveP[s];
       const td=TODAY[s];
-      if(td&&td.prev){
-        td.change=Math.round((liveP[s]-td.prev)*100)/100;
-        td.pct=Math.round((td.change/td.prev)*10000)/100;
+      if(td){
+        // Prefer Yahoo's own previous-close for the day-change math so a
+        // live price is never compared against a stale snapshot baseline.
+        const prevClose=q.prevClose||td.prev;
+        if(prevClose){
+          td.prev=prevClose;
+          td.change=Math.round((liveP[s]-prevClose)*100)/100;
+          td.pct=Math.round((td.change/prevClose)*10000)/100;
+        }
       }
       ok++;
     }
