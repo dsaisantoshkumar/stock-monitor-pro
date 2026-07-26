@@ -4,7 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>Stock Monitor Pro — Mag 7 Dashboard</title>
-  <meta name="description" content="Real-time Magnificent 7 stock tracker with technical signals, email alerts, and portfolio tracking."/>
+  <meta name="description" content="Magnificent 7 stock analytics dashboard with technical signals, sentiment scoring, email alerts, and portfolio tracking. Displays live pricing when available and clearly labels delayed or offline data."/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
@@ -142,8 +142,8 @@ input,select{width:100%;padding:6px 9px;border:0.5px solid var(--color-border-se
 <div class="app">
 <div class="topbar">
   <div>
-    <div class="appname">Stock Monitor Pro <span class="livebadge" id="lb" style="background:#e1f5ee;color:#0f6e56">Apr 8, 2026</span></div>
-    <div class="appsub" id="lastupdated">Live data · Apify news · Yahoo Finance · service_3rss6un (DEFAULT)</div>
+    <div class="appname">Stock Monitor Pro <span class="livebadge" id="lb" style="background:var(--color-background-secondary);color:var(--color-text-secondary)">Checking…</span> <button class="btn-s" id="retryBtn" onclick="fetchLive()" style="display:none;margin-left:4px">Retry</button></div>
+    <div class="appsub" id="lastupdated">Checking live data…</div>
   </div>
   <div class="navrow">
     <button class="ntab on" onclick="showSec('dash',this)">Dashboard</button>
@@ -244,8 +244,8 @@ input,select{width:100%;padding:6px 9px;border:0.5px solid var(--color-border-se
   <div class="card">
     <div class="hdr">
       <div>
-        <span class="htitle">Live news · April 8, 2026</span>
-        <div style="font-size:10px;color:var(--color-text-secondary);margin-top:2px">Scraped via Apify · Yahoo Finance · CNBC · Motley Fool · Zacks</div>
+        <span class="htitle">Market Commentary <span style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;color:var(--color-text-secondary);background:var(--color-background-secondary);padding:2px 7px;border-radius:99px;margin-left:4px;vertical-align:middle">Sample data</span></span>
+        <div style="font-size:10px;color:var(--color-text-secondary);margin-top:2px">Illustrative commentary for demonstration purposes — not a live news feed</div>
       </div>
       <div style="display:flex;gap:6px">
         <select id="nf" onchange="renderNews()"><option value="ALL">All stocks</option></select>
@@ -419,19 +419,70 @@ function initAll(){
   }
   fetchLive();
 }
-async function fetchLive(){
-  let ok=0;
-  for(const s of Object.keys(STOCKS)){
+const CORS_PROXY='https://corsproxy.io/?url=';
+
+function fmtNow(){
+  const d=new Date();
+  const datePart=d.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  const timePart=d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+  let tz='';
+  try{tz=Intl.DateTimeFormat('en-US',{timeZoneName:'short'}).formatToParts(d).find(p=>p.type==='timeZoneName')?.value||'';}catch(e){}
+  return `${datePart} at ${timePart}${tz?' '+tz:''}`;
+}
+
+// Attempts a direct fetch first (works when Yahoo permits CORS for the
+// visitor's network), then falls back through a public CORS proxy. Returns
+// null (never throws) so a blocked/expired path never surfaces as stale
+// data pretending to be current.
+async function fetchOnePrice(s){
+  const target=`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1d`;
+  for(const url of [target, CORS_PROXY+encodeURIComponent(target)]){
     try{
-      const r=await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1d`);
-      if(!r.ok)throw 0;
-      const d=await r.json();const p=d?.chart?.result?.[0]?.meta?.regularMarketPrice;
-      if(p&&p>0){liveP[s]=Math.round(p*100)/100;history[s]['1D'][history[s]['1D'].length-1]=liveP[s];ok++;}
-    }catch(e){}
+      const r=await fetch(url,{signal:AbortSignal.timeout(7000)});
+      if(!r.ok)continue;
+      const d=await r.json();
+      const p=d?.chart?.result?.[0]?.meta?.regularMarketPrice;
+      if(p&&p>0)return p;
+    }catch(e){/* try next strategy */}
   }
-  const t=new Date().toLocaleTimeString();
-  document.getElementById('lb').textContent=ok>0?'Live':'Apr 8 data';
-  document.getElementById('lastupdated').textContent=`${ok>0?'Live prices · Yahoo Finance · ':'Verified data · '}Apify news · service_3rss6un · ${t}`;
+  return null;
+}
+
+async function fetchLive(){
+  const lb=document.getElementById('lb'),lu=document.getElementById('lastupdated'),rb=document.getElementById('retryBtn');
+  lb.textContent='Checking…';lb.style.background='var(--color-background-secondary)';lb.style.color='var(--color-text-secondary)';
+  lu.textContent='Fetching live prices…';
+  if(rb)rb.style.display='none';
+
+  const symbols=Object.keys(STOCKS);
+  let ok=0;
+  for(const s of symbols){
+    const p=await fetchOnePrice(s);
+    if(p){
+      liveP[s]=Math.round(p*100)/100;
+      if(history[s]?.['1D']?.length)history[s]['1D'][history[s]['1D'].length-1]=liveP[s];
+      const td=TODAY[s];
+      if(td&&td.prev){
+        td.change=Math.round((liveP[s]-td.prev)*100)/100;
+        td.pct=Math.round((td.change/td.prev)*10000)/100;
+      }
+      ok++;
+    }
+  }
+
+  const now=fmtNow();
+  if(ok===symbols.length){
+    lb.textContent='Live';lb.style.background='#e1f5ee';lb.style.color='#0f6e56';
+    lu.innerHTML=`Last updated: ${now} &middot; Data source: Yahoo Finance &middot; Status: <strong>Live</strong>`;
+  } else if(ok>0){
+    lb.textContent='Delayed';lb.style.background='#faeeda';lb.style.color='#854f0b';
+    lu.innerHTML=`Last updated: ${now} &middot; Data source: Yahoo Finance &middot; Status: <strong>Delayed</strong> (${ok}/${symbols.length} symbols live — remaining shown from the last known snapshot)`;
+    if(rb)rb.style.display='inline-block';
+  } else {
+    lb.textContent='Unavailable';lb.style.background='#faece7';lb.style.color='#993c1d';
+    lu.innerHTML=`Live market data is temporarily unavailable. Checked ${now} &middot; Status: <strong>Unavailable</strong> — the dashboard below is showing the most recently loaded snapshot, not current prices.`;
+    if(rb)rb.style.display='inline-block';
+  }
   refreshDash();buildStabs();populateSels();
 }
 
@@ -531,7 +582,7 @@ function renderNews(){
       <div class="nh">${n.h}</div>
       <div class="nm">
         <span class="badge ${n.s>0.1?'b-up':n.s<-0.1?'b-dn':'b-nu'}">${n.l}</span>
-        <span style="font-size:10px;color:var(--color-text-secondary)">${n.stock} · ${n.src} · ${n.date} · score: ${n.s>0?'+':''}${n.s}</span>
+        <span style="font-size:10px;color:var(--color-text-secondary)">${n.stock} · ${n.src} (sample) · score: ${n.s>0?'+':''}${n.s}</span>
       </div>
     </div>`).join('');
   document.getElementById('sentm').innerHTML=Object.keys(STOCKS).map(s=>{
@@ -757,7 +808,7 @@ if(settings.name)document.getElementById('cfgn').value=settings.name;
 if(settings.email)document.getElementById('cfge').value=settings.email;
 populateSels();initAll();
 setInterval(()=>{fetchLive();checkAlerts();},300000);
-addLog('v7 started · service_3rss6un DEFAULT · emails → saisantoshkumar29@gmail.com · Apr 8 live news','i',false);
+addLog('v7 started · service_3rss6un DEFAULT · emails → saisantoshkumar29@gmail.com','i',false);
 </script>
 
   <footer class="site-footer">
